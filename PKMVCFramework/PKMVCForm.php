@@ -14,13 +14,7 @@
 
 /** Maps control names to object properties
 */
-
-
-$chartCellMap = array (
-
-//class_name (array, 
-//el_name, el_type, obj_prop
-);
+namespace PKMVC;
 
 
 /** Takes submitted post data and populates an object.
@@ -56,7 +50,6 @@ class BaseForm {
      */
     $results = array();
     $formData = htmlclean($formData);
-    //pkdebug("Post Data AFTER clean:", $formData);
     $classNames = array_keys($formData); 
     foreach ($classNames as $className) {
       /*
@@ -79,7 +72,6 @@ class BaseForm {
         }
        * 
        */
-      //pkdebug("BEFORE SAVE, NEW OBJECT IS:",$obj);
       $obj->save();
       $results[]= $obj;
     }
@@ -101,7 +93,6 @@ class BaseForm {
 #Should they be wrapped in a div?
 
 function makeBooleanInput ($name, $checked = false, $value=null) {
-  pkdebug("NAME ARRAY", $name);
   $defaultClass = 'boolean-checkbox';
   $defaultValue = '1';
   if (!is_array($name)) {

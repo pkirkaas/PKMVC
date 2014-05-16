@@ -33,34 +33,37 @@ function getDb() {
  * @param type $params
  * @return FALSE if failure, or the result statement
  */
-function prepare_and_execute($stmntstr, $params = null) {
-  //pkecho( $stmntstr, $params);
+if ( ! function_exists( 'prepare_and_execute' ) ) {
+ 
+  function prepare_and_execute($stmntstr, $params = null) {
+    //pkecho( $stmntstr, $params);
 
-  if (!is_string($stmntstr)) {
-    throw new Exception("Invalid Statement String: [ $stmntstr ]");
-   // return ("Invalid Statement String: [$stmntstr]");
-  }
-  if (!is_array($params)) {
-    $params = array($params);
-  }
-  $success = true;
-  $db = getDb();
-  $stmt = $db->prepare($stmntstr);
-  if ($stmt instanceOf PDOStatement) {
-    $success = $stmt->execute($params);
-    if (!$success) {
-      $errorInfo = pkvardump($stmt->errorInfo(), false);
+    if (!is_string($stmntstr)) {
+      throw new Exception("Invalid Statement String: [ $stmntstr ]");
+     // return ("Invalid Statement String: [$stmntstr]");
     }
-  } else {
-    $errorInfo = pkvardump($db->errorInfo(), false);
-    $success = false;
+    if (!is_array($params)) {
+      $params = array($params);
+    }
+    $success = true;
+    $db = getDb();
+    $stmt = $db->prepare($stmntstr);
+    if ($stmt instanceOf PDOStatement) {
+      $success = $stmt->execute($params);
+      if (!$success) {
+        $errorInfo = pkvardump($stmt->errorInfo(), false);
+      }
+    } else {
+      $errorInfo = pkvardump($db->errorInfo(), false);
+      $success = false;
 
+    }
+    if (!$success) {
+      $debugDumpParams = pkcatchecho(array($stmt, 'debugDumpParams'));
+      throw new Exception("DB error in prepare_and_execute;"
+              . "Error and debug output:\n\n$errorInfo\n\n$debugDumpParams");
+     // return false;
+    }
+    return $stmt;
   }
-  if (!$success) {
-    $debugDumpParams = pkcatchecho(array($stmt, 'debugDumpParams'));
-    throw new Exception("DB error in prepare_and_execute;"
-            . "Error and debug output:\n\n$errorInfo\n\n$debugDumpParams");
-   // return false;
-  }
-  return $stmt;
 }

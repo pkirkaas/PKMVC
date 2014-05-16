@@ -50,6 +50,11 @@ function pkdebug() {
   pkdebugOut($out);
 }
 
+/**
+ * Returns the (unlimited) args as a string, arg strings as strings,
+ * array and obj args as var_dumps.
+ * @return string
+ */
 function pkdebug_base() {
   //if (sfConfig::get('release_content_env') != 'dev') return;
   $stack = debug_backtrace();
@@ -75,6 +80,8 @@ function pkdebug_base() {
     $idx++;
   }
   $frame = $stack[$idx];
+
+  $frame['function'] = isset($stack[$idx+1]['function'])?$stack[$idx+1]['function']:'';
   //$out .= pkstack() . "\n\n";
   if (isset($stack[1])) {
     $out .= "\nFrame $idx: " . date('j-M-y; H:i:s') . ': ' . $frame['file'] . ": " . $frame['function'] . ': ' . $frame['line'] . ": \n  ";
@@ -108,11 +115,20 @@ function pkdebug_base() {
   return $out;
 }
 
+/**
+ * Outputs the stack to the debug out.
+ * @param type $depth
+ */
 function pkstack($depth = 10) {
   $out = pkstack_base($depth);
   pkdebugOut($out);
 }
 
+/**
+ * Returns the stack as a string
+ * @param type $depth
+ * @return string
+ */
 function pkstack_base($depth = 10) {
   //if (sfConfig::get('release_content_env') != 'dev') return;
   $stack = debug_backtrace();
@@ -129,8 +145,10 @@ function pkstack_base($depth = 10) {
   foreach ($stack as $frame) {
     //$out = $frame['file'].": ".$frame['line'].": Function: ".$frame['function']." \n  ";
     if (isset($frame['file']) && ($frame['file'] == __FILE__)) {
+      $i++;
       continue;
     }
+    
     $out .= pkvardump($frame) . "\n";
     if (++$i >= $depth) {
       break;
@@ -318,3 +336,32 @@ function setGet($getkey, $getval = null, $qstr=null) {
   $returl = $preqstr .'?'.$retquery;
   return $returl;
 }
+
+
+/**
+ * Creates a select box with the input
+ * @param $name - String - The HTML Control Name. Makes class from 'class-$name'
+ * #@param $label - String - The label on the control
+ * #@param $key_str - The key of the select option array element
+ * #@param $val_str - The key for the array element to display in the option
+ * @param $arr - Array - The array of key/value pairs
+ * @param $selected - String or Null - if present, the selected value
+ * @param $none - String or Null - if present, the label to show for a new
+ *   entry (value 0), or if null, only allows pre-existing options
+ * @return String -- The HTML Select Box
+ **/
+
+function makePicker($name,$key,$val,$arr, $selected=null, $none=null) {
+#function makePicker($name, $arr, $selected=null, $none=null) {
+  $select = "<select name='$name' class='$name-sel'>\n";
+  if ($none) $select .= "\n  <option value=''><b>$none</b></option>\n";
+  foreach ($arr as $row) {
+    $selstr = '';
+    if ($selected == $row[$key]) $selstr = " selected='selected' ";
+    $option = "\n  <option value='".$row[$key]."' $selstr>".$row[$val]."</option>\n";
+    $select .= $option;
+  }
+  $select .= "\n</select>";
+  return $select;
+}
+

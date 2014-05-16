@@ -1,4 +1,5 @@
 <?php
+###
 /**
  * PKMVC Framework 
  *
@@ -8,10 +9,11 @@
  * @copyright Copyright (c) 2012-2014 Paul Kirkaas. All rights Reserved
  * @license   http://opensource.org/licenses/BSD-3-Clause  
  */
+namespace PKMVC;
 /** Application Base Path */
 /** Root of everything 
  */
-Class Base {
+Class ApplicationBase {
   public static $renderArr = array();
   public static $controllers = array();
   public static $depth = 0;
@@ -58,14 +60,14 @@ Class Base {
 /**
  * The initializing object
  */
-Class Application extends Base {
+Class Application extends ApplicationBase {
   public $controller;
   public $action;
   public function __construct(Array $args = null) {
   }
 
   public function run( $action = null, $controller = null, $args=null) {
-    $results = Base::layout($controller, $action, $args);
+    $results = ApplicationBase::layout($controller, $action, $args);
     echo $results;
   }
 }

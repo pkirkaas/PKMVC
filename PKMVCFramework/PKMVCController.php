@@ -11,7 +11,7 @@
 /** The Base Controller & Wrapper
  *  Paul Kirkaas
  */
-
+namespace PKMVC;
 Class ControllerWrapper {
   protected $controller;
   public function __construct($controller = null, $args = null) {
@@ -136,27 +136,11 @@ class BaseController {
 
 }
 
-/*
-class IndexController extends BaseController {
-  public function indexAction() {
-    $rearr = array();
-    $comp = array();
-    $args = array('4', '7', 'hello dolly');
-    for ($i = 0; $i < 4; $i++) {
-      $args['key'] = $i;
-      $comp[] = Base::exec('chart','test',$args);
-    }
-    $resarr['comp']= $comp;
-    $resarr['msg']= "Who's the hero now?";
-    return $resarr;
-  }
-}
-*/
 
 class LayoutController extends BaseController {
   public function layoutAction($controller,$action,$args) {
     #return array("content" => "Such a shortcut!");
-    return array('content'=>Base::exec($controller,$action,$args));
+    return array('content'=>ApplicationBase::exec($controller,$action,$args));
 
   }
    

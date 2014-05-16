@@ -9,6 +9,7 @@
  * @license   http://opensource.org/licenses/BSD-3-Clause  
  */
 /** Renders templates based on Controller data */
+namespace PKMVC;
 Class ViewRenderer {
 
   public $controller;
@@ -45,12 +46,12 @@ Class ViewRenderer {
       if ( is_string($data) ) {
         return $data;
       } else {
-        throw new Exception("No template in this ViewRenderer [" . class_name($this) . "]");
+        throw new \Exception("No template in this ViewRenderer [" . class_name($this) . "]");
       }
     }
     $fpath = $this->getFileFromTemplateName($template);
     if (!file_exists($fpath)) {
-      throw new Exception("Template file [$fpath] not found");
+      throw new \Exception("Template file [$fpath] not found");
     }
     if (is_array($data)) extract($data);
     ob_start();
@@ -64,7 +65,7 @@ Class ViewRenderer {
     $root = $this->templateRoot;
     $fpath = $root . "/$templateName" . '.phtml';
     if (!file_exists($fpath)) {
-      throw new Exception("Loading template [$templateName], File [$fpath] not found");
+      throw new \Exception("Loading template [$templateName], File [$fpath] not found");
     }
     return $fpath;
   }
@@ -90,7 +91,7 @@ class RenderResult {
       //return $this->viewRenderer($this->result, $this->template);
       return $this->viewRenderer->render($this->result, $this->template);
     }
-    } catch (Exception $e) {
+    } catch (\Exception $e) {
       pkdebug("Exception:", $e);
       return "Eception: ".$e->getMessage();
     }
@@ -99,7 +100,7 @@ class RenderResult {
 }
 
 /** Make an array of partials to pass to the view */
-class PartialSet extends ArrayObject {
+class PartialSet extends \ArrayObject {
   public $separator = ' ';
   public function __construct($separator = '') {
     $this->separator = $separator;
