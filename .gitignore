@@ -4,6 +4,7 @@
 logs/
 /DO_NOT_SYMC/
 /nbproject/
+nbproject/
 /logs/
 htmlpurifier-4.6.0-standalone/
 jquery-1.11.0.js

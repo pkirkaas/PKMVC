@@ -58,6 +58,7 @@ class BaseForm {
        * 
        */
       $obj = $className::get($formData[$className]);
+      #pkdebug("After getFormData: class: [$className], formData:",$formData, "OBJ", $obj);
       /*
       $subPost = $formData[$className];
       $directFields = $className::getDirectFields();
@@ -73,6 +74,7 @@ class BaseForm {
        * 
        */
       $obj->save();
+      pkdebug("After SAVE: getFormData: class: [$className], formData:",$formData, "OBJ", $obj);
       $results[]= $obj;
     }
     return $results;
