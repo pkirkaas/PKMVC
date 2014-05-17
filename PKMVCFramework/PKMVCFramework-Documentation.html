@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta http-equiv='Content-Type' content='text/html; charset=utf-8'/>
+<style>
+.deprecated {
+  font-style: italic;
+  color: #008;
+}
+</style>
+
+<link type='text/css' rel='stylesheet' href='MyStyleSheet.css'/>
+<title>PKMVCFramework Documentation</title>
+</head>
+<body>
+<div class='title'>PKMVC Framework Documentation -- from 5/2014</div>
+<h1>PKMVC -- ORM</h1>
+<p>The Object / DB management component is independent of the PKMVC Framework. They were developed together but can be used together.
+
+<h2>Concepts</h2>
+<h3>Intro</h3>
+<p>Currently, no clever OO query language. Queries done directly on the DB in SQL. There is support, though for objects that map to DB tables but contain collections -- one to many, like a shopping cart with items. As well as support for an object that contains a key (ID) to another table that represents another object -- many to one, like a shopping cart with a customer ID that represents a Customer object.
+
+<h3>Technical Implementation</h3>
+<p>All objects conforming to this model will descend from PKMVC\BaseModel.
+
+<p>The convention is that all object tables will have a unique integer primary key called 'id'. 
+
+<p>Every field in the underlying DB table has a corresponding Object attribute, but additional object attributes hold the foreign objects represented by the keys.
+
+<p>For a foreign object that is a many-to-one -- like a shopping cart that has and ID representing a customer, but several shopping carts might point to that same customer -- the convention (but not requirement, since there might be several foreign objects of the same type, like 'mother' and 'father' would both point to objects of type 'person') is the foreign table name followed by '_id'. In any case, the foreign keys are stored in this table/object, and it is required that the object field name be the same as the underlying table field name without the terminal '_id'. Fore example, if the external object represents "mother", this object attribute name containing the 'mother' object would be called 'mother', the DB table field would be called 'mother_id', but could represent a class "person".
+
+<p>For collections (one to many, like items in a cart), the collection in this object is represented by an object variable which is an array of foreign objects -- but there is not underlying field in this database. 
+
+<h4>Three types of object attributes/members</h4>
+
+<ul>
+<li>What we call "direct members", which is a direct mapping to the underlying DT Table fields. Every table field has a direct corresponding object field.
+
+<li>There are "Collection" fields, which have no representation in the DB table of this object, but represent an array of foreign objects which have a link to this one.
+
+<li>Foreign Object attributes, which hold a foreign object, which is represented by the corresponding foreign_id field in this underlying table. In the model class static "memberObjects" array, represented by the <tt>array('objectName' => 'objectClass');</tt>. In the underlying DB table, represented by the integer id: "object_name_id".
+
+<p>Using Magic __set/__get/__call, <tt>$this->objectName;</tt> will examine the integer field/member/attribute: <tt>$this->object_name_id</tt>, if it is set, will create or retrieve the matching underlying object and return/set it. The object itself is no longer maintained as an attribute of this class/object.
+
+<p class='deprecated'>and as an object attribute - that is, the "Mother" object would have a single field in the DB table, "mother_id", and two attributes in the object/class -- one mirroring exactly the integer in the 'mother_id' field of the table, and the 'mother' object attribute, which holds an instance of the actual "mother" object, which is a member of the "person" table/class.</p>
+</ul>
+
+<p>These three types of Class members are represented in three static arrays belonging to the class:
+<ul>
+<li> $memberObjects: Array of key/value pairs mapping object field names to the foreign object/class. In the form: <tt>protected $memberObjects=array('mother'=>'Person', 'father'=>'Person');</tt>
+
+<li> $memberCollections: More complex. An array of keys, (attribute names of object members representing collections of other objects, like shopping cart to items). Each key points to an array of ('classname'=> 'foreignClass', 'foreignkey=>'myclass_id');
+
+<p>For example, for a shopping cart containing items: <tt>protected $memberCollectins = array('items'=>array('classname'=>'Item', 'foreignkey'=>'shopping_cart_id"));</tt>
+
+<li>Simplest is memberDirects, which is just an array of which class fields map directly to underlying table fields. Ex: <tt>protected $memberDirects=array('id', 'customer_id', 'date', ...);</tt>
+</ul>
+
+<p>The object class might have other member attributes for housekeeping, for example, all have the "$dirty" attribute.
+
+<h3>Object instantiation and avoiding duplicate objects</h3>
+<p>Objects should not be created by <tt>$obj = new ObjClass();</tt>. Rather: <tt>$obj = ObjClass::get();</tt>. 
+
+<p>::get() can take three types of arguments:
+<ul>
+<li> none/empty, in which case a virgin new object is created.
+<li> An integer, which should be the ID of an underlying table row, in which case the get will retrieve the table data, create the object and return it.
+<li>An array. This is more complicated. The array may or may not contain an object integer ID key. If not, a new object is created and initialized with the data in the rest of the array. 
+
+<p>If the array contains an integer ID key, it is an update. First the get checks to see if that object exists already in its cache (more on that later). If not, it retrieves the object from the DB table. In either case, it then updates the object with the data contained in the array.
+</ul>
+
+<h4>The static "instantiations" array</h4>
+<p>This is a static array of arrays belonging to the BaseModel class. The primary key is 'ClassName', the secondary key is 'id'. Every object retrieved from the DB is immediately entered/stored here. Any subsequent attempt to retrieve an object of that ClassName/ID is checked against the objects in the "instantiations" cache before it is retrieved from the DB.
+
+<h3>Interaction between BaseModel::get() & $modelInstance-update()</h3>
+<p>Both can take an array of data. ::get will create a new object or retrieve an existing one, and if there is data in the data array, hands off to ->update() to complete. 
+
+
+<h1>Deprecated Content</h1>
+<p>For method docs, use the code, and docs generated from the code.
+<p>Other content is no longer relevant as other design decisions have been made, but might be revisited at some point.
+<h2>Methods provided by the underlying BaseModel Class</h2>
+<p>(This list is a subset. Static methods indicated by <tt>::methodName</tt>, instance methods by <tt>->methodName()</tt>)
+
+<h3>::getIds(Array $modelObjs)</h3>
+<p>Given an array of objects, returns an array of their integer IDs.
+
+<h3>->delete()</h3>
+<p>Deletes the current object, and its collections.
+
+<h3>::getMemberCollections()</h3>
+<p>Just returns the array of member collections for this class.
+
+<h3>::getAsObjs(Array $args = null, $orderBy = null)</h3>
+<em>TODO: NEEDS CLARITY OR REWORK!</em>
+<p>A simple query function. Returns objects that match the criteria in the array, using the "::get()" static function.
+
+<h3>::getAsArrays($params, $orderBy)</h3>
+<p>Query function -- returns array from underlying DB table, according to params in the $params array.
+
+<h3>->makeDirty($val), ->isDirty()</h3>
+<p>Self explanatory.
+
+<h3>->getMemberStatus($memberName)</h3>
+<p>Returns public/private/protected for the class attribute name.
+
+<h3>->getAttributeNames()</h3>
+<p>Returns an array of all the member attributes.
+
+<h3>::getDirectFields()</h3>
+<p>Returns an array of all the object fields that map directly to underlying table fields. Currently, just the ::$memberDirects array.
+
+<h3>->fieldIdToObjectName($field_id)</h3>
+<p>Basically just camel-cases a table/object field name (person_id), to the corresponding class name (Person) in the foreign table, but also checks that both the field name exists and the foreign class exists.
+
+<h3>->objectNameToFieldId($objName)</h3>
+<p>As above, in reverse.
+
+<h3>->getModelPropertyAttributes($name)</h3>
+<p>Confusing method name. Not currently used. See code.
+
+<h3>->isTableField($name)</h3>
+<p>Does the name/string match a field name in the underlying table.
+
+<h3>->getCollectionAttributes($name)</h3>
+<p><em>TODO: Challenge: Figure out what to do with a person who as a collection of "children", but do they map to "mother_id" or "father_id" -- "parent_id" isn't enough.
+
+<p>Also figure out when to delete collection objects when the parent object is deleted, and when not?</em>
+
+<p>Checks the given name represents a collection in this object, if so, returns the mapping of characteristics from the ::$memberCollections array. For example, if this is a "Person" instance with a "children" collection, this would return <tt>array('classname'=>'Person", 'foreignkey'=>'parent_id');</tt>
+
+<h3>->getCollectinNames()</h3>
+<p>Just returns an array of all the collection names of this object/class.
+
+<h3>_call(), _get(), _set() magic methods</h3>
+<p>As expected. Setting sets the dirty bit.
+
+<h3>__construct($arg)</h3>
+<p>Should only be called by ::get(). Creates a new instance if $arg is empty, retrieves from the DB table if $arg is an int ID, OR creates a new object and initializes with data from $arg is an array without an 'id' key, OR retrieves from the DB if $arg contains an ID key, but updates with the new data in the rest of the arg array.
+
+<p>Also recursively populates any collections.
+
+
+<h3>->setFieldObject
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</body>
+</html>
+
