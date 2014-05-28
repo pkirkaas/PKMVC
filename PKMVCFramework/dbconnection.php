@@ -51,15 +51,16 @@ if ( ! function_exists( 'prepare_and_execute' ) ) {
     if ($stmt instanceOf PDOStatement) {
       $success = $stmt->execute($params);
       if (!$success) {
-        $errorInfo = pkvardump($stmt->errorInfo(), false);
+        $errorInfo = pkvardump($db->errorInfo(),"Input Parameter Array:",$params, false);
       }
     } else {
-      $errorInfo = pkvardump($db->errorInfo(), false);
+      $errorInfo = pkvardump($db->errorInfo(),"Input Parameter Array:",$params, false);
       $success = false;
 
     }
     if (!$success) {
       $debugDumpParams = pkcatchecho(array($stmt, 'debugDumpParams'));
+      pkdebug("Input Parameter Array:", $params);
       throw new Exception("DB error in prepare_and_execute;"
               . "Error and debug output:\n\n$errorInfo\n\n$debugDumpParams");
      // return false;

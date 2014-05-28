@@ -28,7 +28,7 @@ Class ApplicationBase {
     if (!$action) $action = 'index';
     $controllerName = $controller.BaseController::CONTROLLER;
     if (!class_exists($controllerName)) {
-      throw new Exception("Controller [$controllerName] Not Found");
+      throw new \Exception("Controller [$controllerName] Not Found");
     }
     $actionName = $action.BaseController::ACTION;
     $partialName = $action.BaseController::PARTIAL;

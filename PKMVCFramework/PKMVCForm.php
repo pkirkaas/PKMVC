@@ -17,25 +17,42 @@
 namespace PKMVC;
 
 
-/** Takes submitted post data and populates an object.
- * The map in the constructor only needs to include items
- * where the form element name doesn't match the default
- * table/object field name. For example, 'id'=>'product_id'.
+/** Takes submitted post data and populates an object(s).
  * 
- * For collections, the protected name of the collection in the 
- * class maps to a subarray with the same concept -- 
- * only map exceptions, like 'id' => 'item_id'
+ * By default, 
+ * Assumes the "form" data is in the form of an array possibly 
+ * multi-dimensional for objects with collections (eg, shopping cart with 
+ * items)
+ * 
+ * For example, if the object is of class "ShoppingCart", the underlying
+ * table will be "shopping_cart". The POST array will contain the keys:
+ * shopping_cart[id], shopping_cart[name], etc. If the ShoppingCart class 
+ * contains a collection member "items", the form/POST array will contain:
+ * "shopping_cart[items][0][id], shopping_cart[items][0][price]...."
+ * 
+ * If the user deleltes all the items in the cart, "shopping_cart[items]" index
+ * in the post array won't be set, so you might want to delete all the items
+ * from the cart. 
+ * 
+ * However, another form might also manipulate the cart, but not deal with the
+ * items at all, in which case the "[items]" index will also not be set, but
+ * in this case you DON'T want to delete the items. 
+ * 
+ * We would like to have the same form handling code as much as possible,
+ * however, so our convention is on forms that are meant to add/delete items,
+ * create a hidden input name="shopping_cart[items]" value="".
+ * 
+ * This way, if the cart has been emptied, the "items" index will exist but be
+ * empty, indicating deletion of all items in the cart. If there are items in 
+ * the cart, those inputs will override the empty "items", and can be persisted.
+ * 
+ * And in case of another cart manipulation form that doesn't deal with items,
+ * the items index will never be set, and therefore not deleted from the object.
+ * 
  */
 
 class BaseForm {
-  protected $map = array();
   protected $class;
-
-  public function __construct($map = array()) {
-    if ($map) {
-      $this->map = $map;
-    }
-  }
 
   /** The $formData should be a clean array of data, with relevant
    * class names as the array keys to the data
@@ -43,38 +60,12 @@ class BaseForm {
    * @return type array of saved objects
    */
   public function submitToClass(Array $formData) {
-    /*
-    echo "<p>In submitToClass; formData:<p>";
-    var_dump($formData);
-     * 
-     */
     $results = array();
     $formData = htmlclean($formData);
     $classNames = array_keys($formData); 
     foreach ($classNames as $className) {
-      /*
-    echo "<p>Looping for class[$className]; classNames:<p>";
-    var_dump($classNames);
-       * 
-       */
       $obj = $className::get($formData[$className]);
-      #pkdebug("After getFormData: class: [$className], formData:",$formData, "OBJ", $obj);
-      /*
-      $subPost = $formData[$className];
-      $directFields = $className::getDirectFields();
-      $collections = $className::getMemberCollections();
-      //if (isset($subMap['id'])) {
-      $id = $formData['id'];
-      $obj = $className::get($id); //Retrieves existing object, or new
-      //Do direct fields first
-      foreach ($directFields as $directField) {
-        if (isset($formDatformDatadirectField])) {
-          $obj->$directField =$formData[$directField];
-        }
-       * 
-       */
       $obj->save();
-      pkdebug("After SAVE: getFormData: class: [$className], formData:",$formData, "OBJ", $obj);
       $results[]= $obj;
     }
     return $results;
@@ -90,9 +81,8 @@ class BaseForm {
  * attributes for the elements. 
  * @param $value: The value of the checkox. If empty, just One. The hidden will
  * always be the empty string.
- ^ @ return 
+ ^ @ return String: HTML of the paired checkboxes to make a boolean true/false
  */
-#Should they be wrapped in a div?
 
 function makeBooleanInput ($name, $checked = false, $value=null) {
   $defaultClass = 'boolean-checkbox';

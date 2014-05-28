@@ -106,17 +106,8 @@ class PartialSet extends \ArrayObject {
     $this->separator = $separator;
   }
   public function __toString () {
-    //return "<h1>This is a real string</h1>";
     $str = ' ';
     foreach ($this as $item) {
-      /*
-        ob_start();
-        echo $item;
-        $tmpstr=ob_get_contents ();
-        ob_end_clean();
-      $str.= $tmpstr.$this->separator;
-       * 
-       */
       $str.= ' '.$item.$this->separator;
     }
     return $str;

@@ -45,6 +45,15 @@ use \ReflectionClass;
  * entry in this table, but be included as an array in the "memberCollections"
  * array as: 
  * array('employees'=>array('classname'=>'Employee','foreignkey'=>'boss_id')
+ *
+ *
+ * TODO Section -- stuff to think about...
+ * If supporting multiple depth of Object Model inheritance, (like, BaseUser extends
+ * BaseModel, and MyUser extends BaseUser), should the derived class extend the
+ * properties of the base class, esp. WRT the static arrays like directMembers, 
+ * collections, etc? Or have the opportunity to redefine them? Probably extend, as
+ * a start, by default. Can override if necessary.
+
  */
 class BaseModel {
 
@@ -78,11 +87,22 @@ class BaseModel {
    * directly to field names of the underlying table.
    */
   protected static $memberDirects = array(); #Array of Class attributes that map directly to table fields.
-  protected $exclude = array(); #Members to exclude from direct maping to table fields
+  /** Every class that uses this object model will have a primary key "id":
+   */
+  protected $id;
+
+  /**
+   *(NOT USED)
+   * Members to exclude from direct maping to table fields
+   */
+  protected $exclude = array(); 
+
+
   /** Just keeps track if the object has been modified since being pulled from the 
    * the DB.
    */
   private $dirty = 0; #Checks if object has been modified
+
   /**
    * This is a static array of arrays belonging to the BaseModel class. The
    * primary key is 'ClassName', the secondary key is 'id'. Every object retrieved
@@ -129,15 +149,14 @@ class BaseModel {
     $id = null;
     $class = get_called_class();
     $baseName = static::getBaseName();
-    #pkdebug("IDORARR:", $idOrArray, "CLASS: [$class]");
     if (empty($idOrArray)) { #create new empty object
       return new $class();
     }
     if (is_numeric($idOrArray)) {
-      if (!($id =intval($idOrArray)) ) {
-      throw new Exception ("Trying to create new [$class] with invalid argument: [".pkvardump($idOrArray)."]");
+      if (!($id = intval($idOrArray))) {
+        throw new Exception("Trying to create new [$class] with invalid argument: [" . pkvardump($idOrArray) . "]");
       } else {
-        $idOrArray = array('id'=>$id);
+        $idOrArray = array('id' => $id);
       }
     }
     #Check if there is new data in the array
@@ -146,11 +165,8 @@ class BaseModel {
       $id = $idOrArray['id'];
       $minSizeForData = 1;
     }
-    #pkdebug("Trying to create [$class] with ID: [$id]; idOrArr:", $idOrArray);
     if (empty($id)) { #create new object initialized with array data
       $obj = new $class($idOrArray);
-      #pkdebug("Just created NEW object:", $obj);
-      //pkstack();
       return $obj;
     }
     #Have data array with non-empty 'id' - check if in instantiations cache
@@ -158,16 +174,7 @@ class BaseModel {
       static::$instantiations[$baseName] = array();
     }
     $classarr = &static::$instantiations[$baseName];
-    if ($baseName == 'Chart') {
-      #pkdebug("Checking obj in classarr:", $classarr, "with ID", $id, " and CLASS [$class] with instantiation:", static::$instantiations);
-    }
     if (isset($classarr[$id])) {
-      /*
-      if ($baseName == 'Chart') {
-        #pkdebug("Should do update with: $class though we have idOrAr:", $idOrArray);
-      }
-       * 
-       */
       $obj = $classarr[$id];
       if (sizeof($idOrArray) > $minSizeForData) {
         $obj->update($idOrArray);
@@ -177,57 +184,23 @@ class BaseModel {
       $obj = new $class($idOrArray);
       $classarr[$id] = $obj;
       return $obj;
+    }
+    throw new Exception("Shouldn't be here: Class:[$class], idOrArray: [" . pkvardump($idOrArray) . ']');
+  }
 
-    }
-    /*
-    
-    if (is_array($idOrArray) && (sizeof($idOrArray) > $minSizeForData)) { 
-        //Existing object with new data -- so update
-        #pkdebug("About to call update with obj:", $obj);
-        $obj->update($idOrArray);
-        return $obj;
-      } else { //Have an existing persisted object, not yet instantiated:
-        $obj = new $class($idOrArray);
-        $classarr[$id] = $obj;
-        return $obj;
-      }
-     * 
-     */
-      throw new Exception("Shouldn't be here: Class:[$class], idOrArray: [".pkvardump($idOrArray).']');
-    }
-    /*
-    if ($baseName == 'Chart') {
-      //#pkdebug("In GET: No OBJ, so make new, with 'idOrArray:", $idOrArray);
-    }
-    $obj = new $class($idOrArray);
-    if (!($obj instanceOf $class)) {
-      //return false;
-      throw new \Exception("Couldn't instantiate object of type [$class]");
-    }
-    $classarr[$id] = $obj;
-    return $obj;
-     * 
-     */
-  #}
 
-  /** Updates an existing object with data from array
-   *  TODO: Problem here if there is no key in the 
-   * array -- was the field deleted? 
+
+
+
+
+  /** Update this with new data from the input array.
    * 
-   * For now, with direct fields & member objects -- if the 
-   * data array contains the key but has no value, delete the content, 
-   * if no key, leave unchanged.
-   * 
-   * For collections, similar; if the array key is unset, leave alone, if the
-   * key is set but empty, delete entire collection, and if the key is set
-   * and contains an array, replace the entire contents of the existing object
-   * collection array with the contents of the new input array.
-   * 
-   * @param Array $arr: The array of data to update this object with. Just raw
-   * data in array form.
+   * @param array $arr
+   * @param type $withDelete
+   * @return \PKMVC\BaseModel
    */
+
   public function update(Array $arr, $withDelete = true) {
-    //pkdebug("In UPDATE with ARR:", $arr);
 #TODO: Eventually, make more efficient -- only set dirty if actual
 #change results from this update
     #If no data, return
@@ -265,7 +238,7 @@ class BaseModel {
         $this->$collName = array();
         continue;
       }
-      #We have an array of data arrays (at least one) for the collectin objects
+      #We have an array of data arrays (at least one) for the collection objects
       #They may be a mix of existing persisted objects (with an "ID"), and 
       # new ones, without.
       $collClass = $collDetails['classname'];
@@ -284,62 +257,6 @@ class BaseModel {
       }
       $this->$collName = $newCollection;
 
-      /*
-        $collIds = static::getIds($collObjArr);
-        $arrayIds = array();
-        foreach ($newData as $newDatum) {
-        if (isset($newDatum['id'])) {
-        $arrayIds[] = $newDatum['id'];
-        }
-        }
-        pkdebug("The Update Data Array:", $newData);
-        //We have an array of ID's in the new arrays,
-        //and an array of ID's from the objects in the original collection
-        //Delete objs in the collection not in the array
-        $todelete = array_diff($collIds, $arrayIds);
-        foreach ($collObjArr as $idx => $collObj) {
-        if (in_array($collObj->getId(), $todelete)) {
-        $collObj->delete();
-        unset($collObj);
-        unset($collObjArr[$idx]);
-        }
-        }
-       * 
-       */
-      #Now we should have a sparse array of only the remaining objects. Create
-      #new, filled in array, update the objects with the new data, finally,
-      #create any new objects in the collection...
-      /*
-        $newColl = array();
-        foreach ($collObjArr as $collItem) {
-        $newColl[] = $collItem;
-        $id = $collItem->getId();
-        $newDataItem = false;
-        foreach ($newData as $newDataEl) {
-        if ($newDataEl['id'] == $id) {
-        $newDataItem = $newDataEl;
-        break;
-        }
-        }
-        if ($newDataItem) {
-        $collItem->update($newDataItem);
-        }
-        } //Now we can make the new items in the collection!
-        foreach ($newData as $newDatum) {
-        //pkdebug("Found a new Datum!", $newDatum);
-        if (empty($newDatum['id'])) {
-        $newDatum[$foreignKeyName] = $foreignKeyValue;
-        $newObj = $collClass::get($newDatum);
-        $newColl[] = $newObj;
-        }
-        }
-       */
-      #pkdebug("NEW COLL COLLECTION:", $newColl);
-      #pkdebug("THIS before assignment of new coll...:", $this);
-      //$this->$collName = $newColl;
-      #pkdebug("BEFORE SAVE IN UPDATE!!", $this);
-      #$this->save();
-      #pkdebug("AFTER SAVE IN UPDATE!!", $this);
     }
   }
 
@@ -378,8 +295,15 @@ class BaseModel {
     }
   }
 
-  /** Returns the default value of member collections. No doubt
-   * there is a better way to do this...
+  /** Returns the default value of member directs. Currently just
+   * the static array
+   */
+  public static function getMemberDirects() {
+    return static::$memberDirects;
+  }
+
+  /** Returns the default value of member collections. Currently just
+   * the static array
    */
   public static function getMemberCollections() {
     return static::$memberCollections;
@@ -405,7 +329,6 @@ class BaseModel {
         continue;
       }
       $ret = $className::get($res);
-      //pkdebug("Returned in getAsObjs, ret:", $ret, 'res was:', $res);
       if ($ret instanceOf $className) {
         $retObjs[] = $ret;
       }
@@ -453,12 +376,9 @@ class BaseModel {
       return false;
     }
     $reflectionProperty = new ReflectionProperty($this, $memberName);
-    if ($reflectionProperty->isPrivate())
-      return "private";
-    if ($reflectionProperty->isProtected())
-      return "protected";
-    if ($reflectionProperty->isPublic())
-      return "public";
+    if ($reflectionProperty->isPrivate()) return "private";
+    if ($reflectionProperty->isProtected()) return "protected";
+    if ($reflectionProperty->isPublic()) return "public";
     throw new \Exception("Couldn't find the property for [$memberName]");
   }
 
@@ -651,10 +571,10 @@ class BaseModel {
 #      }
       #So is a public property, set the dirty bit if doing set...
       /*
-      if ($pre == 'set') {
+        if ($pre == 'set') {
         return;
-      }
-      return $this->$field_name;
+        }
+        return $this->$field_name;
        * 
        */
 
@@ -691,8 +611,8 @@ class BaseModel {
         }
        * 
        */
-      throw new \Exception("Unknown method [$name] on class " . get_class($this));
     }
+    throw new \Exception("Unknown method [$name] on class " . get_class($this));
   }
 
   /*
@@ -742,59 +662,34 @@ class BaseModel {
       throw new Exception("Invalid parameter [" . pkvardump($arg) .
       "] for contstructor of class [$class]");
     }
-    //$this->setId($id);
     $this->setId($id);
-    pkdebug("In __construct, creating instance of [$class] with ID: [$id] from arg",$arg, "THIS IS:", $this);
     if ($this->getId()) { #We have an object that exists in the DB - retrieve it
-      pkdebug("About to Hydrate....");
       $this->hydrate();
     }
     #we have an object -- new or retrieved. If we have new data as well, let's
     #update it:
-    
-    #pkdebug("This is hydrated, this is:",$this);
     if (is_array($arg)) {
       $this->update($arg);
     }
-    #pkdebug("This is updated, this is:",$this);
-
-    #DONE
-
-    #If we have an ID, retrieve the persisted object.
-    //$this->populateFromArray($arg);
-    #
-    #`if ()
-    /*
-    if (!is_array($arg)) { #Must be a non-zero integer equivalent
-      if (!is_numeric($arg) || !($arg = intval($arg))) {
-        throw new \Exception("Trying to create a new instance of [$class]
-          with an invalid argument: " . pkvardump($arg));
-      }
-      $args = array('id' => intval($arg));
-      $resarr = getArraysFromTable(get_class($this), $args);
-      if (empty($resarr)) {
-        throw new \Exception("Fetching a non-existant instance of [$class]
-          with id: [$arg]");
-      }
-      $arg = $resarr[0];
-    } else { #is an array of data for a new obj, so initialize - but make dirty
-      $this->makeDirty(1);
-    }
-     * 
-     */
-    /*
-    $this->populateFromArray($arg);
-    pkdebug("Construct, [$class] after PopulateFromArray: THIS:", $this, "ARGARR", $arg);
-    if ($this->getId() && !empty(static::$memberCollections)) {
-      $this->hydrateMemberCollections();
-    }
-    if (is_array($arg)) {
-      $this->update($arg);
-    }
-    //The child class may need to do additional initialization
-     * 
-     */
   }
+
+  /** Retrieves a persisted object from the db -- only requires $this->id
+   * 
+   */
+  public function hydrate() {
+    $className = get_class($this);
+    if (!($id = $this->getId())) {
+      throw new Exception("Trying to hydrate [$className] without an ID");
+    }
+    //$baseName = $this->getBaseName();
+    //$table_name = unCamelCase($baseName);
+
+    $dataArr = $this->getTableRow();
+    $this->exchangeArray($dataArr);
+    $this->hydrateMemberCollections();
+    return $this;
+  }
+
 
   /**
    * Iterates though all the known member collections and calls 
@@ -804,11 +699,8 @@ class BaseModel {
     $memberCollections = static::$memberCollections;
     $keys = array_keys($memberCollections);
     foreach ($keys as $collName) {
-      //foreach (array_keys(static::$memberCollections) as $collName) {
       $this->hydrateMemberCollection($collName);
-      //$this->$collName = $this->hydrateMemberCollection($collName);
     }
-    //pkdebug("Leaving to Hydrate Collections..collections: THIS", $this);
   }
 
   /**
@@ -829,14 +721,11 @@ class BaseModel {
     } else {
       $fullClassName = $classname;
     }
-    //pkdebug("hydrateMemberCollection: collname: $collName, foreignkey: $foreignkey, className: $classname");
-    //$this->$collName = $classname::getOBjectArray($foreignkey, $this->id);
-    $collection = $fullClassName::getOBjectArray($foreignkey, $this->id);
+    $collection = $fullClassName::getObjectsThatMatch(array($foreignkey => $this->getId()));
     if (!$collection) {
       $collection = array();
     }
     $this->$collName = $collection;
-    //pkdebug("Leaving hydrateMemberCollection: collection::",$collection, "THIS", $this);
   }
 
   /*   * CANCELLED: Don't bother keeping member objects with this object, can just
@@ -887,6 +776,8 @@ class BaseModel {
    * from the array. Individual subclasses will want to extend/add to this
    * with setting member attributes NOT mapped directly to the table
    * 
+   * Have to populate collections from array, as well as direct members
+   * 
    * Changed from Zend Framework 2 model of setting $obj->attr to null
    * even if $arr['attr'] doesn't exist.
    */
@@ -895,14 +786,46 @@ class BaseModel {
     $directFields = static::getDirectFields();
     foreach ($directFields as $directField) {
       $direct_field = unCamelCase($directField);
-      /*
-        if (isset($data[$direct_field])) {
-        $this->$directField= $data[$direct_field];
-        }
-       */
-      $this->$directField = (!empty($data[$direct_field])) ?
-              $data[$direct_field] : null;
+      if (isset($data[$direct_field])) {
+        $this->$directField = $data[$direct_field];
+      }
     }
+    #Another try at persisting collections?
+    
+    /*
+    $collectionDetails = static::getMemberCollections();
+    foreach ($collectionDetails as $collectionName => $collectionDetail) {
+      $newCollection = array();
+      foreach($data[$collectionName] as $collectionRow) {
+        $foreignkey = $collectionDetail['foreignkey'];
+        $fullForeignClassName = static::getNamespaceName()."\\".$collectionDetail['classname'];
+        $collectionRow[$foreignkey] = $this->getId();
+        $newCollection[] = $fullForeignClassName::get($collectionRow);
+      }
+      $this->$collectionName = $newCollection;
+    }
+     * 
+     */
+    /*
+    #Now do collections. TODO: Should they be collections of raw
+    #data, or objects? Try objects first...
+    $collections = static::getMemberCollections();
+    $collNames = array_keys($collections);
+    foreach ($collNames as $collName) {
+      if (!isset($data[$collName])) {
+        continue; #TODO: Want to skip or delete if empty?
+      }
+      $newCollArr = array();
+      foreach ($data[$collName] as $collRow) {
+        //$collObjClass = static::getNamespaceName()."\\".$collections[$collName]['classname'];
+        //$collObj = $collObjClass::get($collRow);
+        //$newCollArr[] = $collObj;
+        $newCollArr[] = $collRow;
+      }
+      $this->$collName = $newCollArr;
+    }
+     * 
+     */
   }
 
   /**
@@ -920,6 +843,25 @@ class BaseModel {
       $direct_field = unCamelCase($directField);
       $retarr[$direct_field] = $this->$directField;
     }
+    /*
+    $memberCollections = static::getMemberCollections();
+    foreach (array_keys($memberCollections) as $collectionName) {
+      $retarr[$collectionName] =$this->profile_jobs; 
+    } 
+     * 
+     */
+    /*
+    $collectionDetails = static::getMemberCollections();
+    foreach ($collectionDetails as $collectionName => $collectionDetail) {
+      $retarr[$collectionName] = array();
+      $collectionArrayObjs = $this->$collectionName;
+      foreach ($collectionArrayObjs as $collectionArrayObj)
+      
+      #$retarr[$collectionName][] = $collectionArrayObj->etArrayCopy();
+      $retarr[$collectionName][] = $collectionArrayObj;
+    }
+     * 
+     */
     return $retarr;
   }
 
@@ -957,14 +899,12 @@ class BaseModel {
     if (!$objectType) {
       $objectType = toCamelCase($objectName, true);
       $tableName = unCamelCase($objectName);
-    } else
-      $tableName = unCamelCase($objectType);
+    } else $tableName = unCamelCase($objectType);
 
     $field_id = unCamelCase($objectName) . '_id';
     if ($this->$field_id) {
       $obj = $objectType::get($this->$field_id);
       if ($obj instanceOf $objectType) {
-        #pkdebug("Returning member object of [$fullClass]", $obj);
         return $obj;
       }
     }
@@ -984,8 +924,8 @@ class BaseModel {
       $this->$name = $value;
       $this->makeDirty(1);
       return;
-    } else if ((in_array($name, array_keys(static::$memberObjects)) &&
-            ($value instanceOf BaseModel) || !$value)) {
+    } else if (in_array($name, array_keys(static::$memberObjects)) &&
+            (($value instanceOf BaseModel) || !$value)) {
       #TODO: Check the object is of the correct class
       ## Removed keeping the object itself; just the ID. This means it is not
       #possible to add a member object that hasn't been persisisted to the DB
@@ -1009,10 +949,14 @@ class BaseModel {
               ($value[0] instanceOf
               static::$memberCollections[$name]['classname']))) {
         #Value either an appropriate collection, or empty & clear
-        $this->$name = $value;
+        $this->$uccName = $value;
       } else { #Clear/empty the collection
-        unset($this->$field_name);
+        unset($this->$uccName);
       }
+      $this->makeDirty(1);
+      return;
+    } else if (property_exists($className, $uccName)) { //At least the property exists
+      $this->$uccName = $value;
       $this->makeDirty(1);
       return;
     } else {
@@ -1020,15 +964,14 @@ class BaseModel {
     }
   }
 
-  /**
+  /*
    * 
    * @param type $name
    * @return type
    */
   public function __get($name) {
     #check if the property exists in our class
-    $className = get_class($this);
-    #pkdebug("In class [$className], trying to __get: [$name]");
+    #Could be a non-persisted member....
     $className = get_class($this);
     if (in_array($name, static::$memberDirects)) { //it's a member direct'
       return $this->$name;
@@ -1039,6 +982,8 @@ class BaseModel {
         return $this->getFieldObject($name, static::$memberObjects[$name]);
       }
     } else if (in_array($name, array_keys(static::$memberCollections))) {
+      return $this->$name;
+    } else if (property_exists($className, $name)) { //At least the property exists
       return $this->$name;
     }
     throw new \Exception("In class [$className]; couldn't get member [$name]");
@@ -1078,43 +1023,32 @@ class BaseModel {
    * @return \PKMVC\BaseModel
    */
   public function save() {
-    #pkdebug("Entering SAVE, THIS IS:", $this);
     $baseName = static::getBaseName();
-    //$table = unCamelCase(get_class($this));
     $table = unCamelCase($baseName);
-
-    //$dataArr = getArrayCopy();
     $this->saveDirects(); // Will also set id if new object
-    //$obarr = createArrayFromObj($this, $this->exclude);
-    //pkecho("ObjArr:", $obarr);
-    //$obarr = saveArrayToTable($obarr, $table);
-    /*
-    if (!$obarr || !is_array($obarr) || empty($obarr['id'])) {
-      throw new \Exception("Something wasn't set right for save: obarr: [" . pkvardump($obarr) . "]; THIS: " . pkvardump($this));
-      //return false;
-    }
-     * 
-    $this->id = $obarr['id'];
-     */
     if (!isset(static::$instantiations[$baseName])) {
       static::$instantiations[$baseName] = array();
     }
     static::$instantiations[$baseName][$this->id] = $this;
-    //if ($this instanceOf Profile) {
-    //pkdebug("Before Save,  this:", $this);
-    //}
-
     $this->saveCollections();
     $this->makeDirty(0);
     return $this;
   }
 
+  /** Saves the flat table row of object members that map directly to 
+   * underlying table fields
+   */
+
   public function saveDirects() {
     $table_name = static::getTableName();
     $dataArr = $this->getArrayCopy();
-    $dataArr = saveArrayToTable($dataArr, $table_name);
-    $this->setId($dataArr['id']);
-    #pkdebug("END OF saveDirects: dataArr:", $dataArr, "THIS:", $this);
+    $memberDirects = static::getMemberDirects();
+    $saveArr = array();
+    foreach ($memberDirects as $memberDirect) {
+      $saveArr[$memberDirect] = $dataArr[$memberDirect];
+    }
+    $saveArr = saveArrayToTable($saveArr, $table_name);
+    $this->setId($saveArr['id']);
     return $this;
   }
 
@@ -1124,7 +1058,7 @@ class BaseModel {
    * a time.
    */
   public function saveCollections($deleteAbsent = true) {
-    foreach (array_keys(static::$memberCollections) as $collName) {
+    foreach (array_keys(static::getMemberCollections()) as $collName) {
       $this->saveCollection($collName, $deleteAbsent);
     }
   }
@@ -1150,39 +1084,43 @@ class BaseModel {
    * @param string $fieldname -- the collection of objects belonging to this
    * @param string $className -- the type in the collection
    * @param string $foreignKey -- they key in the objectType table pointing to this
-   * @return PDOStatemjent or false;
+   * @return PDOStatement or false;
    */
-  public function saveCollection($fieldname, $deleteAbsent=true) {
+  public function saveCollection($fieldname, $deleteAbsent = true) {
+    //pkdebug("SAVE COLLECTION FOR fieldname $fieldname");
     $thisClassName = get_class($this);
     if (is_string($fieldname) && property_exists($this, $fieldname)) {
       $objArr = $this->$fieldname;
     } else {
       throw new \Exception("Collection [$fieldname] not in [$thisClassName]");
     }
-    if (empty($objArr) || !sizeof($objArr)) {
-      return false;
-    }
     #Shouldn't be necessary...
-    if (!$this->getId()) {
-     // $this->save();
-     // }
-    //if (!$this->getId()) {
-      throw new \Exception("Couldn't save 'this' and get an id");
+    if (!$this->getId()) $this->save();
+    if (!$this->getId())  throw new \Exception("Couldn't save 'this' and get an id");
+    $baseCollClassName = static::$memberCollections[$fieldname]['classname'];
+    $foreignKey = static::$memberCollections[$fieldname]['foreignkey'];
+    $tableName = unCamelCase($baseCollClassName);
+
+    if (empty($objArr) || !sizeof($objArr)) {#Empty collection -- delete all?
+      if ($deleteAbsent) {
+        $strSql = "DELETE FROM `$tableName` WHERE `$foreignKey` = :owner";
+        $argArr = array('owner' => $this->getId());
+      //pkdebug("THE FROM EMPTY: DELETES: ", $strSql, $argArr, "THIS:",$this);
+        $stmt = prepare_and_execute($strSql, $argArr);
+        if (!$stmt) return false;
+        return $stmt;
+      }
+      return false;
     }
 
     //Build list of current collectoin obj ids, to delete those in DB no
     //longer party of this object collection
     $ids = array();
-    //pkdebug("In saveCollection Pre, objArr:",$objArr);
     if (empty(static::$memberCollections[$fieldname]) ||
             empty(static::$memberCollections[$fieldname]['classname'])) {
       throw new \Exception("No classname found for this collection class Class: "
       . get_class($this) . ", for collection [$fieldname]");
     }
-    $baseCollClassName = static::$memberCollections[$fieldname]['classname'];
-    $foreignKey = static::$memberCollections[$fieldname]['foreignkey'];
-
-    $tableName = unCamelCase($baseCollClassName);
     foreach ($objArr as $obj) {
       $obj->$foreignKey = $this->getId();
       $obj->save();
@@ -1192,8 +1130,8 @@ class BaseModel {
     #Saved all objects in collection, now delete from DB Table all collection
     #instances that are no longer part of this collection. 
     #here, we are not deleting them from the instantiations cache...
-
     if ($deleteAbsent) {
+      //pkdebug ("Trying to delete absent ids:",$ids);
       $ret = idxArrayToPDOParams($ids);
       $paramStr = $ret['paramStr'];
       $argArr = $ret['argArr'];
@@ -1201,10 +1139,9 @@ class BaseModel {
 
       $strSql = "DELETE FROM `$tableName` WHERE `$foreignKey` = :owner AND  " .
               " `id` NOT IN ($paramStr)";
-      #pkdebug("About to delete prof_jobs? strSql: [$strSql], argArr:", $argArr);
+      //pkdebug("THE DELETES: ", $strSql, $argArr);
       $stmt = prepare_and_execute($strSql, $argArr);
-      if (!$stmt)
-        return false;
+      if (!$stmt) return false;
       return $stmt;
     }
   }
@@ -1234,84 +1171,6 @@ class BaseModel {
     }
   }
 
-/** Retrieves a persisted object from the db -- only requires $this->id
- * 
- */
-  public function hydrate() {
-    $className = get_class($this);
-    if (!($id = $this->getId())) {
-      throw new Exception ("Trying to hydrate [$className] without an ID");
-    }
-    //$baseName = $this->getBaseName();
-    //$table_name = unCamelCase($baseName);
-
-    $dataArr = $this->getTableRow();
-    $this->exchangeArray($dataArr);
-    $this->hydrateMemberCollections();
-    pkdebug("End of Hydrate; dataArr:",[$dataArr], "This:", $this);
-    return $this;
-  }
-
-  /**
-   * Returns the array of objects match the value of the key
-   * @param string $key - the table field name, object member name of the one side
-   * @param string $val - The value to be matched
-   * @return array  - array of matching object instances
-   */
-  public static function getOBjectArray($key, $val) {
-    $params = array($key => $val);
-    return static::getObjectsThatMatch($params);
-    //pkdebug("Getting ObjArray for Key:", $key,"VAL", $val);
-    /*
-      $id = 0;
-      if (is_numeric($val) && intval($val)) {
-      $id = intval($val);
-      } else if (is_object($val) && property_exists($val, 'id')) {
-      $id = $val->id;
-      }
-      if (!$id) {
-      throw new \Exception("Trying to get data wihout a valid ID, VAL: " . pkvardump($val));
-      }
-     * 
-     */
-    /*
-      $class = get_called_class();
-      $baseName = static::getBaseName();
-      $tableName = unCamelCase($baseName);
-      if (property_exists($class, $key)) {
-      $strSql = "SELECT `id` FROM `$tableName` where `$key` = :$key";
-      $stmt = prepare_and_execute($strSql, array($key => $val));
-      if (!$stmt)
-      return false;
-      $resarr = $stmt->fetchAll(PDO::FETCH_ASSOC);
-      if (!is_array($resarr) || !sizeof($resarr)) {
-      return false;
-      }
-      $ids = array();
-      $objarr = array();
-      //pkdebug("About to loop through resarr:",$resarr);
-      foreach ($resarr as $res) {
-      $obj = $class::get($res['id']);
-      if ($obj instanceOf $class)
-      $objarr[] = $obj;
-      }
-      //pkdebug("Finished loop with ObjArr:",$objarr);
-      return $objarr;
-      }
-     * 
-     */
-  }
-
-  /** Newera-- accounts for collections and pre-axisting objs */
-  /*
-    public static function makeObjFromArray($arr) {
-    if (empty($arr['id'])) {
-    $i;
-    }
-    }
-   * *
-   */
-
   /**
    * Populates an object with data from the array
    * TODO: Kind of duplicates ->exchangeArray($data) but not exactly yet,
@@ -1321,11 +1180,11 @@ class BaseModel {
    * @param Array $exclude: Field names to skip/exclude
    * @return \BaseModel
    */
+   /*
   public function populateFromArray($arr, $recursive = true, $exclude = array()) {
     $this->makeDirty();
     $directFields = static::getDirectFields();
     $colls = static::$memberCollections;
-    //pkdebug("COLLS:", $colls, 'THIS', $this);
     foreach ($arr as $key => $val) {
       #Skip fields to exlcude
       if (in_array($key, $exclude)) {
@@ -1335,14 +1194,11 @@ class BaseModel {
       if (in_array($key, $directFields)) {
         $this->$key = $val;
       }
-      //pkdebug("IN populateFromArray; input array:", $arr, "key:", $key, "Colls:", $colls, "THIS",$this);
       #If recursive, populate collections as well...
       if ($recursive && in_array($key, array_keys($colls))) {
         $this->$key = array();
-        #if (is_array($subarr = $arr[$key])) {
         if (is_array($val)) {
           $foreignKey = $colls[$key]['foreignkey'];
-          //pkdebug("IN populateFromArray; subarr:",$subarr, "Colls:", $colls, "ForeignKeh:", $foreignKey);
           foreach ($val as $subel) {
             if (empty($subel[$foreignKey]) && (!empty($this->id) || !empty($arr['id']))) {
               $subel[$foreignKey] = $this->id ? $this->id : $arr['id'];
@@ -1351,8 +1207,6 @@ class BaseModel {
             $namespace = $this->getNamespaceName();
             $collClassName = $namespace . '\\' . $colls[$key]['classname'];
             $res[] = $collClassName::get($subel);
-            //$res[] = $colls[$key]['classname']::get($subel);
-            //$this->$key[] = $colls[$key]['classname']::get($subel);
           }
           $this->$key = $res;
           #pkdebug("PopFromArray: THIS:", $this, "RES:", $res);
@@ -1361,6 +1215,7 @@ class BaseModel {
     }
     return $this;
   }
+  */
 
   /**
    * Returns an array of objects of this class which match the parameters. The
@@ -1368,33 +1223,30 @@ class BaseModel {
    * just based on the underlying table; no joins.
    * <p>Does an SQL query on the underlying table to get an array of ID's,
    * then uses ::get($id) to retrieve the individual objects
-   * @param Array $params: key=>value pairs of table select criteria
+   * @param Array $params: key=>value pairs of table select criteria, or 
+   *   nothing/empty array to return all objects.
    * @param null|String $orderBy: If present, field name to order by
-   * @return: Array: Array of matching objects, if any
+   * @return: Array: Array of matching objects, if any, or all objects in table if
+   *   $params is empty
    */
-  public static function getObjectsThatMatch(Array $params, $orderBy = 'id') {
-    //$tableName = unCamelCase(get_called_class());
+  public static function getObjectsThatMatch(Array $params = array(), $orderBy = 'id') {
     $baseName = static::getBaseName();
     $tableName = unCamelCase($baseName);
-    $argArr = pre_prepare_data($params);
-    $queryStr = $argArr['queryString'];
-    $paramArr = $argArr['paramArr'];
-    //pkdebug("input Params:",$params, "Ret from pre_prep", $argArr);
-    $fullQS = "SELECT `id` FROM `$tableName` WHERE $queryStr";
-    if ($orderBy && is_string($orderBy)) {
-      //Can't paramaterize field names, so check orderBy in table:
-      if (!doesFieldExist($orderBy, $tableName)) {
-        throw new \Exception("No field [$orderBy] in table: [$tableName]`");
-      }
+    if (is_array($params) && sizeof($params)) {
+      $argArr = pre_prepare_data($params);
+      $queryStr = $argArr['queryString'];
+      $paramArr = $argArr['paramArr'];
+      $fullQS = "SELECT `id` FROM `$tableName` WHERE $queryStr  ORDER BY $orderBy ";
+      $stmt = prepare_and_execute($fullQS, $paramArr);
+    } else {
+      $fullQS = "SELECT `id` FROM `$tableName` ORDER BY $orderBy ";
+      $stmt = prepare_and_execute($fullQS);
     }
-    $fullQS .= " ORDER BY `$orderBy` ";
-    $stmt = prepare_and_execute($fullQS, $paramArr);
     $resarr = $stmt->fetchAll();
     $retarr = array();
     foreach ($resarr as $resrow) {
       $retarr[] = static::get($resrow['id']);
     }
-    //pkdebug("Leaving objmatch::retarr:",$retarr,'resarr',$resarr, 'params',$params,'fullQQS',$fullQS,'argarr',$argArr);
     return $retarr;
   }
 
@@ -1407,8 +1259,8 @@ class BaseModel {
       throw new Exception("No ID");
     }
     $class = get_class($this);
-    $rowArr = $class::getRowsThatMatch(array('id'=>$id));
-    if (!is_array($rowArr) || !sizeof ($rowArr))  {
+    $rowArr = $class::getRowsThatMatch(array('id' => $id));
+    if (!is_array($rowArr) || !sizeof($rowArr)) {
       return false;
     }
     return $rowArr[0];
@@ -1507,8 +1359,7 @@ function createArrayFromObj($obj, $exclude = null) {
   $arr = array();
   $objvars = $obj->getDirectVars();
   foreach ($objvars as $key => $val) {
-    if (in_array($key, $exclude))
-      continue;
+    if (in_array($key, $exclude)) continue;
     $arr[$key] = $val;
   }
   return $arr;
@@ -1526,9 +1377,9 @@ function createArrayFromObj($obj, $exclude = null) {
  */
 function saveArrayToTable(&$inarr, $table, $exclude = array()) {
   if (!empty($inarr['id']) && !intval($inarr['id'])) {
-    return false;#bad ID
+    throw new Exception("Bad id in data array: [{$inarr['id']}]");
   }
-  
+
   $arr = array();
   $id = null;
   $exclude[] = 'id';
@@ -1559,13 +1410,11 @@ function saveArrayToTable(&$inarr, $table, $exclude = array()) {
   if (!$stmt instanceOf PDOStatement) {
     throw new Exception("Problem with Insert/Update for [$sqlStr]");
   }
-  if (!$id)
-    $id = $db->lastInsertId();
+  if (!$id) $id = $db->lastInsertId();
   $arr['id'] = $id;
   foreach ($arr as $key => $value) {
     $inarr[$key] = $value;
   }
-//pkdebug("Leaving saveArrayToTable, inarr:", $inarr);
   return $inarr;
 }
 
@@ -1695,15 +1544,12 @@ function pre_prepare_data(Array $data, $omitId = null) {
   $retstr = '';
   $retarr = array();
   foreach ($data as $key => $value) {
-    if ($omitId && ($key == 'id'))
-      continue;
+    if ($omitId && ($key == 'id')) continue;
     $key = unCamelCase($key);
     $retstr .= " `$key` = :$key AND ";
     $retarr[$key] = $value;
   }
   $retstr .= " 1 = 1 ";
-//$retstr = substr($retstr, 1);
-//$retstr = substr($retstr, 1);
   return array('queryString' => $retstr, 'paramArr' => $retarr);
 }
 
@@ -1720,13 +1566,11 @@ function prePrepareDataForUpdateOrInsert(Array $data, $omitId = null) {
   $retstr = '';
   $retarr = array();
   foreach ($data as $key => $value) {
-    if ($omitId && ($key == 'id'))
-      continue;
+    if ($omitId && ($key == 'id')) continue;
     $key = unCamelCase($key);
     $retstr .= ", `$key` = :$key  ";
     $retarr[$key] = $value;
   }
-//$retstr .= " 1 = 1 ";
   $retstr = substr($retstr, 1);
 //$retstr = substr($retstr, 1);
   return array('queryString' => $retstr, 'paramArr' => $retarr);
@@ -1760,7 +1604,6 @@ function idxArrayToPDOParams($array) {
 function doesFieldExist($field, $table) {
   $field = unCamelCase($field);
   $table = unCamelCase($table);
-  $db = getDb();
   $dbName = getDatabaseName();
   $strSql = " SELECT * FROM `information_schema`.`COLUMNS`
 WHERE TABLE_SCHEMA = '$dbName'
@@ -1782,8 +1625,7 @@ AND COLUMN_NAME = :field_name";
  */
 function doesTableExist($tableName) {
   $tableName = unCamelCase($tableName);
-  if (!$tableName || !is_string($tableName))
-    return false;
+  if (!$tableName || !is_string($tableName)) return false;
   $dbName = getDatabaseName();
   $strSql = " SELECT `table_name` FROM `information_schema`.`TABLES`
 WHERE TABLE_SCHEMA = '$dbName'

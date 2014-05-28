@@ -260,24 +260,30 @@ function htmlclean ($arr, $usehtmlspecchars = false) {
   return $retarr;
 }
 
-
-/*
-function getUrl() {
-  $pageURL = 'http';
-  if (!empty($_SERVER["HTTPS"])) {$pageURL .= "s";}
-  $pageURL .= "://";
-  return $pageURL.$_SERVER["HTTP_HOST"] . $_SERVER["REQUEST_URI"];
-}
-*/
-
 function getBaseUrl() {
   $pageURL = 'http';
   if (!empty($_SERVER["HTTPS"])) {$pageURL .= "s";}
   $pageURL .= "://";
   return $pageURL.$_SERVER["HTTP_HOST"];
 }
+
+
 function getUrl() {
   return getBaseUrl(). $_SERVER["REQUEST_URI"];
+}
+
+/**
+ * Returns all components of the page URL, without the 
+ * GET query parameters
+ */
+function getUrlNoQuery() {
+  $noGetUriArr = explode('?',$_SERVER["REQUEST_URI"]);
+  //var_dump("NO GET URI:", $noGetUriArr);
+  $noGetUri = $noGetUriArr[0];
+  $baseUrl = getBaseUrl();
+  //$baseUrl = substr($baseUrl, 0, -1);
+  $getUrlNoQuery = $baseUrl.$noGetUri;
+  return $getUrlNoQuery;
 }
 
 /** Sets (changes or adds or unsets/clears) a get parameter to a value
@@ -365,3 +371,16 @@ function makePicker($name,$key,$val,$arr, $selected=null, $none=null) {
   return $select;
 }
 
+
+/** Performs the equivalent of "filter_input($type = INPUT_REQUEST,...) if that
+ * existed.
+ * @param type $var
+ * @param type $filter
+ * @param type $options
+ */
+function filter_request($var, $filter = FILTER_DEFAULT, $options = null) {
+  $res = filter_input(INPUT_GET, $var, $filter, $options);
+  if ($res === null) $res=filter_input(INPUT_POST, $var, $filter, $options);
+  if ($res === null) $res=filter_input(INPUT_COOKIE, $var, $filter, $options);
+  return $res;
+}
