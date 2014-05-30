@@ -384,3 +384,14 @@ function filter_request($var, $filter = FILTER_DEFAULT, $options = null) {
   if ($res === null) $res=filter_input(INPUT_COOKIE, $var, $filter, $options);
   return $res;
 }
+
+
+
+/** No guarantee, but approximate heuristic to determine if an array is
+ * associative or integer indexed.
+ * NOTE: Will return FALSE if array is empty, and TRUE if array is 
+ * indexed but not sequential. 
+ * @param type $array
+ * @return type
+ */
+function isAssoc($array) { return ($array !== array_values($array));}

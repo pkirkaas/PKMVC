@@ -53,6 +53,8 @@ use \ReflectionClass;
  * properties of the base class, esp. WRT the static arrays like directMembers, 
  * collections, etc? Or have the opportunity to redefine them? Probably extend, as
  * a start, by default. Can override if necessary.
+ *
+ * Conclusion: Abstract all: for memberDirects/memberObjects/memberCollections - should be a merge all the way up the inheretance tree. 
 
  */
 class BaseModel {
@@ -86,7 +88,7 @@ class BaseModel {
   /** Just a one dimentional array of attribute names of this class which correspond
    * directly to field names of the underlying table.
    */
-  protected static $memberDirects = array(); #Array of Class attributes that map directly to table fields.
+  protected static $memberDirects = array('id'); #Array of Class attributes that map directly to table fields.
   /** Every class that uses this object model will have a primary key "id":
    */
   protected $id;
@@ -225,7 +227,7 @@ class BaseModel {
     #data arr, and just raw data. If raw data, have to call ::get() with the 
     #data to see if the object exists, and then update it as well, recursively
 
-    $collections = static::$memberCollections;
+    $collections = static::getMemberCollections();
     foreach ($collections as $collName => $collDetails) {
       #$collObjArr = $this->$collName; #array of collection member objects
       #If data array has no key for this collection, skip
@@ -276,7 +278,8 @@ class BaseModel {
    * 
    */
   public function delete() {
-    $collectionNames = array_keys(static::$memberCollections);
+    $memberCollections = static::getMemberCollections();
+    $collectionNames = array_keys($memberCollections);
     foreach ($collectionNames as $collectionName) {
       foreach ($this->$collectionName as $object) {
         $object->delete();
@@ -295,18 +298,70 @@ class BaseModel {
     }
   }
 
+  /** 
+   * Recurse up through inheretence hierarchy and merge static arrays of
+   * the given attribute name. This is for use by ::getMemberDirects(),
+   * ::getMemberObjects, ::getMemberCollections()... to support deep object/class
+   * inheritence. For example, BaseModel has "memberDirects=array('id');".
+   * Child class "BaseUser extends BaseModel" has "memberDirects=array('uname')"
+   * Your child user class might be "MyUser extends BaseUser", and 
+   * MyUser::memberDirects = array('myextrastuff');
+   *
+   * So MyUser::getMemberDirects() should return "array('id','uname','myextrastuff');
+   * etc.
+   *
+   * This static function is used by the various "getMemberXXX()" functions, and
+   * returns a merged array, with child definitions overriding base defs.
+   * @param $attributeName String: the name of the attribute: memberDirects,
+   *  memberObjects, or memberCollections (for now)
+   * @param $idx Boolean: is the array type indexed or associative? Used for 
+   *   merging strategy - $memberDirects are indexed, others assoc.
+   * @return Array: Merged array of hierarchy
+   */
+
+   public static function getMemberMerged($attributeName, $idx = false) {
+     #First, build array of arrays....
+     $retArr = array();
+     $class = get_called_class();
+     $retArr[]=static::$$attributeName; #Deliberate double $$
+     while ($par = get_parent_class($class)) {
+      $retArr[]=$par::$$attributeName;
+      $class=$par;
+    }
+    #Now merge. Reverse order so child settings override ancestors...
+    $retArr = array_reverse($retArr);
+    $mgArr = call_user_func_array('array_merge',$retArr);
+    if ($idx) { #Indexed array, return only unique values. For 'memberDirects'
+      #Mainly to save the developer who respecifies 'id' in the derived direct
+      $mgArr = array_unique($mgArr);
+    }
+    return $mgArr;
+   }
+
+
   /** Returns the default value of member directs. Currently just
    * the static array
    */
   public static function getMemberDirects() {
-    return static::$memberDirects;
+    //return static::$memberDirects;
+    return static::getMemberMerged('memberDirects',true);
   }
 
   /** Returns the default value of member collections. Currently just
    * the static array
    */
+  public static function getMemberObjects() {
+    //return static::$memberObjects;
+    return static::getMemberMerged('memberObjects');
+  }
+
+
+  /** Returns the default value of member collections. Currently just
+   * the static array
+   */
   public static function getMemberCollections() {
-    return static::$memberCollections;
+    //return static::$memberCollections;
+    return static::getMemberMerged('memberCollections');
   }
 
   /** Queries the table with arguments in $args */
@@ -402,7 +457,8 @@ class BaseModel {
    * Currently just the ::$memberDirects array.
    */
   public static function getDirectFields() {
-    return static::$memberDirects;
+    //return static::$memberDirects;
+    return static::getMemberDirects();
   }
 
   /** Just returns the default name of the underlying table based
@@ -519,12 +575,14 @@ class BaseModel {
     if (!in_array($name, $this->getCollectionNames())) {
       return false;
     }
-    return static::$memberCollections[$name];
+    $memberCollections = static::getMemberCollections();
+    return $memberCollections[$name];
   }
 
   public function getExternalObjectClassName($name) {
-    if (in_array($name, array_keys(static::$memberObjects))) {
-      return static::$memberObjects[$name];
+    $memberObjects = static::getMemberObjects();
+    if (in_array($name, array_keys($memberObjects))) {
+      return $memberObjects[$name];
     }
     return false;
   }
@@ -533,7 +591,7 @@ class BaseModel {
    * of all collection names.
    */
   public function getCollectionNames() {
-    return array_keys(static::$memberCollections);
+    return array_keys(static::getMemberCollections());
   }
 
   /** Magic method to for auto set/get generation -
@@ -696,7 +754,7 @@ class BaseModel {
    * "hydrateMemberCollection($collectionName) on each.
    */
   public function hydrateMemberCollections() {
-    $memberCollections = static::$memberCollections;
+    $memberCollections = static::getMemberCollections();
     $keys = array_keys($memberCollections);
     foreach ($keys as $collName) {
       $this->hydrateMemberCollection($collName);
@@ -713,8 +771,9 @@ class BaseModel {
       throw new \Exception("Collection: [$collName] not found in " . get_class($this));
     }
 #protected $memberCollections = array('cells'=>array('classname'=>'ChartCell','foreignkey'=>'chart_id'));
-    $classname = (static::$memberCollections[$collName]['classname']);
-    $foreignkey = static::$memberCollections[$collName]['foreignkey'];
+    $memberCollections = static::getMemberCollections();
+    $classname = ($memberCollections[$collName]['classname']);
+    $foreignkey = $memberCollections[$collName]['foreignkey'];
     $namespace = $this->getNamespaceName();
     if ($namespace) {
       $fullClassName = $namespace . '\\' . $classname;
@@ -920,11 +979,12 @@ class BaseModel {
   public function __set($name, $value) {
     $className = get_class($this);
     $uccName = unCamelCase($name);
-    if (in_array($name, static::$memberDirects)) { //it's a member direct'
+    $memberCollections = static::getMemberCollections();
+    if (in_array($name, static::getMemberDirects())) { //it's a member direct'
       $this->$name = $value;
       $this->makeDirty(1);
       return;
-    } else if (in_array($name, array_keys(static::$memberObjects)) &&
+    } else if (in_array($name, array_keys(static::getMemberObjects())) &&
             (($value instanceOf BaseModel) || !$value)) {
       #TODO: Check the object is of the correct class
       ## Removed keeping the object itself; just the ID. This means it is not
@@ -943,11 +1003,11 @@ class BaseModel {
       }
       $this->makeDirty(1);
       return;
-    } else if (in_array($name, array_keys(static::$memberCollections))) {
+    } else if (in_array($name, array_keys($memberCollections))) {
       if (is_array($value) &&
               ((!sizeof($value) || !$value) ||
               ($value[0] instanceOf
-              static::$memberCollections[$name]['classname']))) {
+              $memberCollections[$name]['classname']))) {
         #Value either an appropriate collection, or empty & clear
         $this->$uccName = $value;
       } else { #Clear/empty the collection
@@ -973,15 +1033,17 @@ class BaseModel {
     #check if the property exists in our class
     #Could be a non-persisted member....
     $className = get_class($this);
-    if (in_array($name, static::$memberDirects)) { //it's a member direct'
+    $memberCollections = static::getMemberCollections();
+    if (in_array($name, static::getMemberDirects())) { //it's a member direct'
       return $this->$name;
     }
-    if (in_array($name, array_keys(static::$memberObjects))) { //it's a member object'
+    if (in_array($name, array_keys(static::getMemberObjects()))) { //it's a member object'
       $field_id = $this->objectNameToFieldId($name);
       if (isset($field_id)) {
-        return $this->getFieldObject($name, static::$memberObjects[$name]);
+        $memberObjects = static::getMemberObjects();
+        return $this->getFieldObject($name, $memberObjects[$name]);
       }
-    } else if (in_array($name, array_keys(static::$memberCollections))) {
+    } else if (in_array($name, array_keys($memberCollections))) {
       return $this->$name;
     } else if (property_exists($className, $name)) { //At least the property exists
       return $this->$name;
@@ -1097,8 +1159,9 @@ class BaseModel {
     #Shouldn't be necessary...
     if (!$this->getId()) $this->save();
     if (!$this->getId())  throw new \Exception("Couldn't save 'this' and get an id");
-    $baseCollClassName = static::$memberCollections[$fieldname]['classname'];
-    $foreignKey = static::$memberCollections[$fieldname]['foreignkey'];
+    $memberCollections = static::getMemberCollections();
+    $baseCollClassName = $memberCollections[$fieldname]['classname'];
+    $foreignKey = $memberCollections[$fieldname]['foreignkey'];
     $tableName = unCamelCase($baseCollClassName);
 
     if (empty($objArr) || !sizeof($objArr)) {#Empty collection -- delete all?
@@ -1116,8 +1179,8 @@ class BaseModel {
     //Build list of current collectoin obj ids, to delete those in DB no
     //longer party of this object collection
     $ids = array();
-    if (empty(static::$memberCollections[$fieldname]) ||
-            empty(static::$memberCollections[$fieldname]['classname'])) {
+    if (empty($memberCollections[$fieldname]) ||
+            empty($memberCollections[$fieldname]['classname'])) {
       throw new \Exception("No classname found for this collection class Class: "
       . get_class($this) . ", for collection [$fieldname]");
     }
