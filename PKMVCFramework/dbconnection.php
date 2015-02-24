@@ -16,7 +16,7 @@ function getDb() {
   static $db = null;
   if ($db instanceof PDO) return $db;
   try {  
-    $db = new PDO("mysql:host=".DB_SERVER.";dbname=".DB_NAME, DB_USER, DB_PASSWORD);  
+    $db = new PDO("mysql:host=".DB_HOST.";dbname=".DB_NAME, DB_USER, DB_PASSWORD);  
   } catch (PDOException $e) {
     die  ($e->getMessage());
   }
@@ -60,7 +60,10 @@ if ( ! function_exists( 'prepare_and_execute' ) ) {
     }
     if (!$success) {
       $debugDumpParams = pkcatchecho(array($stmt, 'debugDumpParams'));
-      pkdebug("Input Parameter Array:", $params);
+      pkdebug("DB error in prepare_and_execute;\nSTMNTSTR: [$stmntstr];
+               Input Parameter Array:", $params,
+              "Error and debug output:\n\n",$db->errorInfo(),"\n\n$debugDumpParams"
+              );
       throw new Exception("DB error in prepare_and_execute;"
               . "Error and debug output:\n\n$errorInfo\n\n$debugDumpParams");
      // return false;
